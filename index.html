@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生産スケジュール</title>
+<style>
+/* ---- Material Design 3 風トークン ---- */
+.viz-root{
+  color-scheme: light;
+  --bg:#f4f6fa; --surface-1:#ffffff; --surface-2:#f1f4f9; --surface-3:#e8edf5;
+  --border:#d5dae3; --outline:#747a86; --grid:#e6e9ef;
+  --text-primary:#1b1c1f; --text-secondary:#5c6370; --text-muted:#8a909c;
+  --primary:#1b64be; --on-primary:#ffffff; --primary-container:#d6e5fb; --on-primary-container:#0b2f5c;
+  --series-1:#257de0; --series-1-hover:#1b64be; --accent-bg:#e8f1fc;
+  --critical:#c62828; --crit-bg:#fdecea; --on-crit-bg:#5f1412; --good:#1e7d32; --good-bg:#e7f4e9;
+  --tip-bg:#2f3033; --tip-fg:#f2f2f2;
+  --e1:0 1px 2px rgba(16,24,40,.12),0 1px 3px 1px rgba(16,24,40,.06);
+  --e2:0 1px 2px rgba(16,24,40,.14),0 2px 6px 2px rgba(16,24,40,.08);
+  --state:rgba(27,100,190,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])) .viz-root{
+    color-scheme: dark;
+    --bg:#111318; --surface-1:#1b1e24; --surface-2:#22262d; --surface-3:#2a2f37;
+    --border:#373c45; --outline:#8b919c; --grid:#2a2e35;
+    --text-primary:#e4e6eb; --text-secondary:#a9afba; --text-muted:#7c828d;
+    --primary:#a8c8fb; --on-primary:#062e6f; --primary-container:#1f3f6b; --on-primary-container:#d6e5fb;
+    --series-1:#338ced; --series-1-hover:#6aabf1; --accent-bg:#16263a;
+    --critical:#f28b82; --crit-bg:#3b1a19; --on-crit-bg:#fadbd8; --good:#81c995; --good-bg:#183222;
+    --tip-bg:#e4e6eb; --tip-fg:#1b1c1f;
+    --e1:0 1px 2px rgba(0,0,0,.5),0 1px 3px 1px rgba(0,0,0,.3);
+    --e2:0 1px 2px rgba(0,0,0,.5),0 2px 6px 2px rgba(0,0,0,.3);
+    --state:rgba(168,200,251,.10);
+  }
+}
+:root[data-theme="dark"] .viz-root{
+  color-scheme: dark;
+  --bg:#111318; --surface-1:#1b1e24; --surface-2:#22262d; --surface-3:#2a2f37;
+  --border:#373c45; --outline:#8b919c; --grid:#2a2e35;
+  --text-primary:#e4e6eb; --text-secondary:#a9afba; --text-muted:#7c828d;
+  --primary:#a8c8fb; --on-primary:#062e6f; --primary-container:#1f3f6b; --on-primary-container:#d6e5fb;
+  --series-1:#338ced; --series-1-hover:#6aabf1; --accent-bg:#16263a;
+  --critical:#f28b82; --crit-bg:#3b1a19; --on-crit-bg:#fadbd8; --good:#81c995; --good-bg:#183222;
+  --tip-bg:#e4e6eb; --tip-fg:#1b1c1f;
+  --e1:0 1px 2px rgba(0,0,0,.5),0 1px 3px 1px rgba(0,0,0,.3);
+  --e2:0 1px 2px rgba(0,0,0,.5),0 2px 6px 2px rgba(0,0,0,.3);
+  --state:rgba(168,200,251,.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:"Roboto","Noto Sans JP","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:14px;letter-spacing:.01em}
+.viz-root{background:var(--bg);color:var(--text-primary);min-height:100vh}
+svg.i{width:18px;height:18px;fill:currentColor;flex:none}
+
+/* トップアプリバー */
+.appbar{position:sticky;top:0;z-index:10;background:var(--surface-1);box-shadow:var(--e1);}
+.appbar-in{max-width:1440px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:16px;min-height:64px}
+.appbar .logo{width:40px;height:40px;border-radius:12px;background:var(--primary-container);color:var(--on-primary-container);display:grid;place-items:center}
+.appbar .logo svg{width:22px;height:22px}
+.appbar h1{font-size:20px;font-weight:500;margin:0;line-height:1.3}
+.appbar .sub{font-size:12px;color:var(--text-secondary);margin:2px 0 0}
+.appbar .spacer{flex:1}
+
+.wrap{max-width:1440px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:24px}
+.card{background:var(--surface-1);border-radius:16px;padding:20px 24px;box-shadow:var(--e1)}
+.card-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.card-head h2{font-size:18px;font-weight:500;margin:0}
+.card-head .count{font-size:12px;color:var(--text-secondary);background:var(--surface-2);border-radius:8px;padding:2px 8px}
+.divider{height:1px;background:var(--border);margin:20px -24px}
+
+/* ボタン */
+.btn{font:inherit;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 20px;border-radius:20px;
+  border:1px solid var(--outline);background:transparent;color:var(--primary);cursor:pointer;transition:background .15s,box-shadow .15s}
+.btn:hover{background:var(--state)}
+.btn:focus-visible,.icon-btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.btn.primary:hover{box-shadow:var(--e1);filter:brightness(1.06)}
+.btn.tonal{background:var(--primary-container);border-color:transparent;color:var(--on-primary-container)}
+.btn.text{border-color:transparent;padding:0 12px}
+.btn.danger{color:var(--critical)}
+.btn:disabled{opacity:.38;cursor:default;background:transparent}
+.icon-btn{width:40px;height:40px;border-radius:20px;border:0;background:transparent;color:var(--text-secondary);display:inline-grid;place-items:center;cursor:pointer;font:inherit}
+.icon-btn:hover{background:var(--state);color:var(--text-primary)}
+.icon-btn.danger:hover{color:var(--critical);background:var(--crit-bg)}
+.icon-btn:disabled{opacity:.38;cursor:default;background:transparent}
+.icon-btn.outlined{border:1px solid var(--outline)}
+
+/* セグメントボタン */
+.seg{display:inline-flex;border:1px solid var(--outline);border-radius:20px;overflow:hidden;height:40px}
+.seg button{border:0;background:transparent;color:var(--text-primary);padding:0 18px;font:inherit;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button:hover{background:var(--state)}
+.seg button[aria-pressed="true"]{background:var(--primary-container);color:var(--on-primary-container)}
+.seg button[aria-pressed="true"]::before{content:"✓";font-size:13px}
+
+/* 入力（アウトライン） */
+input,select{font:inherit;color:var(--text-primary);background:transparent;border:1px solid var(--outline);border-radius:6px;padding:0 10px;height:36px;transition:border-color .15s}
+input:hover,select:hover{border-color:var(--text-primary)}
+input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+input[type=number]{width:84px;text-align:right}
+input::placeholder{color:var(--text-muted)}
+select{padding-right:6px;cursor:pointer}
+td input[type=text]{width:100%;min-width:110px}
+td input[type=datetime-local]{width:auto}
+input.need{border-color:var(--critical);background:var(--crit-bg)}
+input.need::placeholder{color:var(--critical)}
+
+/* チップ（ライン） */
+.lines-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lines-edit .lbl{font-size:12px;color:var(--text-secondary);margin-right:4px}
+.chip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--outline);border-radius:8px;height:36px;padding:0 2px 0 10px;background:var(--surface-1)}
+.chip svg.dot{width:10px;height:10px;fill:var(--series-1)}
+.chip input{width:96px;border:0;height:32px;padding:0 4px;box-shadow:none;background:transparent}
+.chip input:focus{box-shadow:none}
+.chip:focus-within{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+.chip button{width:28px;height:28px;border:0;border-radius:14px;background:transparent;color:var(--text-secondary);cursor:pointer;display:grid;place-items:center}
+.chip button:hover{background:var(--crit-bg);color:var(--critical)}
+.chip button:disabled{opacity:.35;cursor:not-allowed;background:transparent;color:var(--text-secondary)}
+.chip button svg{width:16px;height:16px;fill:currentColor}
+.chip.add{border-style:dashed;color:var(--primary);padding:0 12px;cursor:pointer;font:inherit;font-weight:500;gap:6px}
+.chip.add:hover{background:var(--state)}
+
+.sched-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.gctl{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-left:auto}
+.gctl .seg{margin-right:8px}
+
+/* お知らせ（アラート） */
+.alertbox{display:flex;gap:12px;background:var(--crit-bg);color:var(--on-crit-bg);border-radius:12px;padding:12px 16px;margin-bottom:16px}
+.alertbox > svg{width:24px;height:24px;fill:var(--critical);flex:none;margin-top:1px}
+.alertbox h3{margin:2px 0 6px;font-size:14px;font-weight:600;color:var(--critical)}
+.alertbox ul{margin:0;padding-left:18px}
+.alertbox li{margin:3px 0;line-height:1.5}
+.okbox{display:flex;align-items:center;gap:10px;background:var(--good-bg);color:var(--text-primary);border-radius:12px;padding:10px 16px;margin-bottom:16px}
+.okbox svg{width:20px;height:20px;fill:var(--good)}
+.okbox b{color:var(--good)}
+
+/* 凡例・期間 */
+.legend{display:flex;gap:20px;flex-wrap:wrap;color:var(--text-secondary);font-size:12px;margin:0 0 8px;align-items:center}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.grange{color:var(--text-primary);font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.grange::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--primary)}
+
+/* ガント（SVG） */
+.chart{position:relative}
+.gantt{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:8px 8px 4px}
+.gantt svg{display:block;width:100%}
+.tick{fill:var(--text-secondary);font-size:11px}
+.tick.wk{fill:var(--text-muted)}
+.gridline{stroke:var(--grid);stroke-width:1}
+.gmajor{stroke:var(--outline);stroke-width:1;opacity:.5}
+.g-lane{fill:var(--surface-2)}
+.g-bar{fill:var(--series-1)}
+.g-hit:hover .g-bar{filter:brightness(.88)}
+.g-ov{fill:url(#hatch);stroke:var(--critical);stroke-width:2}
+.g-txt{font-size:11px;font-weight:600;pointer-events:none}
+.g-lbl{fill:var(--text-primary);font-size:12px;font-weight:500}
+.g-rfm{fill:var(--text-primary)}
+.g-rfl{stroke:var(--surface-1);stroke-width:2;stroke-dasharray:3 2}
+.g-rf:hover .g-rfm{fill:var(--primary)}
+
+/* ツールチップ */
+.tip{position:absolute;pointer-events:none;background:var(--tip-bg);color:var(--tip-fg);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.6;box-shadow:var(--e2);white-space:nowrap;display:none;z-index:50}
+.tip b{display:block;margin-bottom:2px;font-weight:600}
+.tip .k{opacity:.7}
+
+/* テーブル */
+.tablewrap{overflow:auto;border:1px solid var(--border);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:6px 12px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+th{color:var(--text-secondary);font-weight:500;font-size:12px;position:sticky;top:0;background:var(--surface-2);height:48px;z-index:1}
+tbody tr{height:56px;transition:background .1s}
+tbody tr:hover td{background:var(--state)}
+td.num,th.num{text-align:right}
+td.result{font-variant-numeric:tabular-nums}
+td.result b{font-size:15px;font-weight:600}
+td.result .hm,td .sub2{font-size:11px;color:var(--text-secondary);font-weight:400}
+td.when{font-weight:500}
+.empty{color:var(--text-muted);padding:32px;text-align:center}
+tr.conflict td{background:var(--crit-bg)}
+tr.conflict:hover td{background:var(--crit-bg)}
+tr.conflict td.when{color:var(--critical)}
+.rf-list{font-size:12px;color:var(--text-secondary);white-space:normal;min-width:220px;max-width:320px;line-height:1.5}
+.mval{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.mval .sub2{line-height:1}
+
+/* ステータス（アシストチップ） */
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:8px;height:28px;padding:0 10px;font-size:12px;font-weight:500}
+.badge.ng{background:var(--critical);color:#fff}
+.badge.ok{background:var(--good-bg);color:var(--good)}
+.badge.na{background:var(--surface-2);color:var(--text-muted)}
+.tag{display:inline-block;font-size:10px;font-weight:600;color:var(--on-primary-container);background:var(--primary-container);border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:1px}
+
+td .ro{font-variant-numeric:tabular-nums;color:var(--text-secondary)}
+.pdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.swatch{display:inline-block;width:28px;height:28px;border-radius:8px;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15);position:relative;overflow:hidden}
+.swatch input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+.plegend{display:inline-flex;gap:12px;flex-wrap:wrap}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.hint{color:var(--text-secondary);font-size:12px;margin-top:12px;line-height:1.7}
+#sched th,#sched td{padding:6px 8px}
+#sched th:first-child,#sched td:first-child{padding-left:12px}
+#sched select{max-width:140px}
+#sched select[data-jf=lineId]{max-width:110px}
+#sched input[type=number]{width:68px}
+#sched input[type=datetime-local]{padding:0 6px}
+#sched td.when{white-space:normal;min-width:128px;line-height:1.4}
+#sched .rf-list{min-width:150px;max-width:200px}
+.hint ul{margin:4px 0 0;padding-left:18px}
+</style>
+</head>
+<body>
+<div class="viz-root">
+<header class="appbar"><div class="appbar-in">
+  <div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h10v3H3zm4 6.5h12v3H7zM5 17h9v3H5z"/></svg></div>
+  <div>
+    <h1>生産スケジュール</h1>
+    <p class="sub">所要時間 ＝ 流動メーター数（作業ごと） ÷ 1分当たりメーター数（品番ごと） × 数量　／　ライン別の時間帯・重複・補充タイミングを確認</p>
+  </div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="themeBtn" title="ライト／ダーク切替" aria-label="ライト／ダーク切替"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 16V5a7 7 0 0 1 0 14z"/></svg></button>
+</div></header>
+<div class="wrap">
+
+  <section class="card" id="schedCard">
+    <div class="card-head"><h2>ライン別 生産スケジュール</h2><span class="count" id="jobCount"></span></div>
+    <div class="sched-bar">
+      <div class="lines-edit" id="linesEdit"></div>
+      <div class="gctl">
+        <div class="seg" role="group" aria-label="タイムラインの表示単位" id="gScaleSeg">
+          <button data-gs="fit">全体</button><button data-gs="hour">時</button><button data-gs="day">日</button>
+        </div>
+        <button class="icon-btn" data-gnav="-1" title="前へ" aria-label="前へ"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <button class="btn text" data-gnav="0" title="今日を表示"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7z"/></svg>今日</button>
+        <button class="icon-btn" data-gnav="1" title="次へ" aria-label="次へ"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>
+    </div>
+    <div id="alerts"></div>
+    <div class="legend"><span class="grange" id="gRange"></span><span style="flex:1"></span><span id="prodLegend" class="plegend"></span><span><i style="background:var(--critical)"></i>⚠ 同一ラインで時間帯が重複</span><span><b style="color:var(--text-primary)">▼</b> 補充タイミング</span></div>
+    <div class="gantt chart" id="gantt"></div>
+    <div class="divider"></div>
+    <div class="tablewrap">
+      <table id="sched"><thead></thead><tbody></tbody></table>
+    </div>
+    <div class="row-actions">
+      <button class="btn primary" id="addJob"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>作業を追加</button>
+      <button class="btn" id="packJobs" title="各ラインの作業を開始時刻順に、前の作業の終了直後へ詰め直して重複を解消します"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2V3c-1.1 0-2 .9-2 2zm0 8h2v-2H3v2zm4 8h2v-2H7v2zM3 9h2V7H3v2zm10-6h-2v2h2V3zm6 0v2h2c0-1.1-.9-2-2-2zM5 21v-2H3c0 1.1.9 2 2 2zm-2-4h2v-2H3v2zM9 3H7v2h2V3zm2 18h2v-2h-2v2zm8-8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2zm0-12h2V7h-2v2zm0 8h2v-2h-2v2zm-4 4h2v-2h-2v2zm0-16h2V3h-2v2zM7 17h10V7H7v10z"/></svg>重複を解消（前詰め）</button>
+    </div>
+    <div class="hint"><ul>
+      <li>終了時刻 ＝ 開始 ＋（流動メーター数 ÷ 1分当たりメーター数）× 数量。24時間連続で計算します（稼働時間・曜日の制限なし）。</li>
+      <li>流動メーター数は毎回変わるため<b>作業ごとに入力</b>します（未入力は赤枠）。作業を追加したり品番を選び直したときは、同じ品番の直近の作業の値が初期値として入ります。</li>
+      <li>1分当たり(m/分)とガントの色は<b>製品マスターで品番ごとに設定</b>します（色見本をクリックで変更）。</li>
+      <li>▼補充タイミングは、マスターの「補充間隔」ぶん稼働するごとに表示します（ラインは止めず、終了時刻にも影響しません）。</li>
+      <li>新しい作業は、最も早く空くラインの最後の作業が終わった時刻から始まるように入ります。</li>
+    </ul></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2 id="tableTitle">製品マスター</h2><span class="count" id="prodCount"></span></div>
+    <div class="tablewrap">
+      <table id="master">
+        <thead></thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+    <div class="row-actions">
+      <button class="btn primary" id="addRow"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>製品を追加</button>
+      <button class="btn" id="exportCsv"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>CSVエクスポート</button>
+      <label class="btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>CSVインポート<input type="file" id="importCsv" accept=".csv,text/csv" hidden></label>
+      <span style="flex:1"></span>
+      <button class="btn text danger" id="resetData"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>サンプルに戻す</button>
+    </div>
+    <div class="hint">CSV形式：製品コード,製品名,1分当たりメーター数(m/分),補充間隔,補充単位(分/時間),色(#RRGGBB)　／　補充間隔＝稼働時間がこの長さに達するごとに補充（0は補充なし）　／　編集内容はこのブラウザに自動保存されます。</div>
+  </section>
+
+</div>
+<div class="tip" id="tip"></div>
+</div>
+
+<script>
+(() => {
+  const UNITS = {
+    hour:  { label: '時', long: '時間', per: '1時間' },
+    day:   { label: '日', long: '日',   per: '1日'  },
+    week:  { label: '週', long: '週',   per: '1週'  },
+    month: { label: '月', long: 'ヶ月', per: '1ヶ月' },
+  };
+  const SRC_UNITS = { min: { label: '分', m: 1 }, hour: { label: '時間', m: 60 }, day: { label: '日', m: null } };
+  const STORE_KEY = 'product-leadtime-dashboard-v1';
+  // 品番の既定色（青・黄・アクア・橙・紫・桃・緑・茶・灰・紺）。赤は「重複」の警告色なので既定では使わない
+  const PALETTE = ['#257de0', '#f2a600', '#00b894', '#f47230', '#6a4ce2', '#ee7fac', '#008a17', '#8d6e63', '#78909c', '#283593'];
+  // 背景色に合わせて文字色（黒／白）を選ぶ
+  function inkFor(hex){
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return '#ffffff';
+    const n = parseInt(m[1], 16), lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const L = 0.2126 * lin(n >> 16 & 255) + 0.7152 * lin(n >> 8 & 255) + 0.0722 * lin(n & 255);
+    return (1.05) / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : '#1b1c1f';
+  }
+  const colorOf = p => (p && p.color) || PALETTE[0];
+  const ICONS = {"add": "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", "del": "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z", "close": "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z", "prev": "M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z", "next": "M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z", "today": "M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7z", "theme": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 16V5a7 7 0 0 1 0 14z", "warn": "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z", "ok": "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z", "pack": "M3 5h2V3c-1.1 0-2 .9-2 2zm0 8h2v-2H3v2zm4 8h2v-2H7v2zM3 9h2V7H3v2zm10-6h-2v2h2V3zm6 0v2h2c0-1.1-.9-2-2-2zM5 21v-2H3c0 1.1.9 2 2 2zm-2-4h2v-2H3v2zM9 3H7v2h2V3zm2 18h2v-2h-2v2zm8-8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2zm0-12h2V7h-2v2zm0 8h2v-2h-2v2zm-4 4h2v-2h-2v2zm0-16h2V3h-2v2zM7 17h10V7H7v10z", "down": "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z", "up": "M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z", "reset": "M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z", "line": "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z", "gantt": "M3 4h10v3H3zm4 6.5h12v3H7zM5 17h9v3H5z"};
+  const icon = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n]}"/></svg>`;
+
+  const SAMPLE = {
+    settings: { hpd: 8, dpw: 5, dpm: 20, lines: 1 },
+    unit: 'hour',
+    products: [
+      { code: 'P-001', name: '制御盤 A型',     mpm: 5, color: '#257de0', refill: 2, refillUnit: 'hour' },
+      { code: 'P-002', name: '制御盤 B型',     mpm: 5, color: '#f2a600', refill: 4, refillUnit: 'hour' },
+      { code: 'P-003', name: 'センサーユニット', mpm: 2, color: '#00b894', refill: 1.5, refillUnit: 'hour' },
+      { code: 'P-004', name: '配線ハーネス',   mpm: 2, color: '#f47230', refill: 1, refillUnit: 'hour' },
+      { code: 'P-005', name: '大型筐体',       mpm: 2, color: '#6a4ce2', refill: 8, refillUnit: 'hour' },
+      { code: 'P-006', name: '試験治具',       mpm: 2, color: '#ee7fac', refill: 0, refillUnit: 'hour' },
+    ],
+    lines: [ { id: 'L1', name: 'ラインA' }, { id: 'L2', name: 'ラインB' }, { id: 'L3', name: 'ラインC' } ],
+    schedule: [
+      { id: 'J1', lineId: 'L1', code: 'P-001', meters: 1800, qty: 1, start: '2026-11-26T08:00' },
+      { id: 'J2', lineId: 'L1', code: 'P-002', meters: 3600, qty: 1, start: '2026-11-27T08:00' },
+      { id: 'J3', lineId: 'L2', code: 'P-003', meters: 90, qty: 8, start: '2026-11-26T08:00' },
+      { id: 'J4', lineId: 'L2', code: 'P-004', meters: 40, qty: 12, start: '2026-11-26T13:00' },
+      { id: 'J5', lineId: 'L3', code: 'P-005', meters: 2880, qty: 1, start: '2026-11-26T08:00' },
+    ],
+  };
+
+  let state = load();
+
+  function load(){
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) { const s = JSON.parse(raw); if (s && s.products && s.settings) {
+        if (!s.lines) { s.lines = SAMPLE.lines.slice(); s.schedule = SAMPLE.schedule.slice(); }
+        if (!s.schedule) s.schedule = [];
+        s.products.forEach(p => {
+          if (p.refill === undefined) { p.refill = 0; p.refillUnit = 'hour'; }
+          if (p.meters === undefined && p.time !== undefined) {   // 旧形式（所要時間を直接入力）からの移行：結果が変わらないよう m/時=1 で置換
+            const t = Number(p.time) || 0;
+            const h = p.srcUnit === 'day' ? t * s.settings.hpd : p.srcUnit === 'min' ? t / 60 : t;
+            p.meters = +h.toFixed(4); p.mph = 1; delete p.time; delete p.srcUnit;
+          }
+          if (p.mpm === undefined && p.mph !== undefined) {      // m/時 → m/分 へ移行（所要時間の結果は変えない）
+            p.mpm = +((Number(p.mph) || 0) / 60).toPrecision(6); delete p.mph;
+          }
+        });
+        const has = v => v !== undefined && v !== null && v !== '';
+        // 流動メーター数は作業ごとの入力：未入力の作業には旧マスター値をコピー
+        s.schedule.forEach(j => {
+          const p = s.products.find(v => v.code === j.code);
+          if (p && !has(j.meters) && has(p.meters)) j.meters = p.meters;
+        });
+        // m/分 は製品マスターで固定：マスターに無ければ、その品番の直近の作業の値を採用
+        s.products.forEach(p => {
+          if (!has(p.mpm)) {
+            const last = s.schedule.filter(j => j.code === p.code && has(j.mpm)).sort((a, b) => String(b.start).localeCompare(String(a.start)))[0];
+            if (last) p.mpm = Number(last.mpm);
+          }
+          delete p.meters; delete p.qty;
+        });
+        s.schedule.forEach(j => { delete j.mpm; });
+        // 色：未設定の品番には既定の色を順に割り当て
+        s.products.forEach((p, i) => { if (!p.color) p.color = PALETTE[i % PALETTE.length]; });
+        return s;
+      } }
+    } catch(e) {}
+    return JSON.parse(JSON.stringify(SAMPLE));
+  }
+  function save(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e) {} }
+
+  // ---- 換算 ----
+  const S = () => state.settings;
+  const REFILL_UNITS = { min: '分', hour: '時間' };
+  const refillMinutes = p => (Number(p.refill) || 0) * (p.refillUnit === 'min' ? 1 : 60);
+  function periodMinutes(unit){
+    const { hpd, dpw, dpm } = S();
+    return { hour: 60, day: hpd*60, week: hpd*dpw*60, month: hpd*dpm*60 }[unit];
+  }
+  const conv = (min, unit) => min / periodMinutes(unit);
+  function fmt(v, d){
+    if (!isFinite(v)) return '—';
+    const a = Math.abs(v); const digits = d ?? (a >= 100 ? 0 : a >= 10 ? 1 : a >= 0.1 || a === 0 ? 2 : a >= 0.01 ? 3 : 4);
+    return v.toLocaleString('ja-JP', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+  }
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ---- 描画 ----
+  function render(){
+    state.settings.lines = Math.max(1, state.lines.length);
+    const rows = state.products.map(p => ({ p }));
+    renderTable(rows);
+    renderSchedule('hour', UNITS.hour);
+  }
+
+  function renderTable(rows){
+    const t = document.getElementById('master');
+    t.tHead.innerHTML = `<tr>
+      <th>色</th><th>製品コード</th><th>製品名</th><th class="num" title="ラインが1分間に流せるメーター数（製品ごとに固定）">1分当たり<br>(m/分)</th>
+      <th class="num" title="稼働時間がこの間隔に達するごとに補充（0＝補充なし）">補充間隔</th><th>単位</th><th></th></tr>`;
+    t.tBodies[0].innerHTML = rows.map((r, i) => `<tr data-i="${i}">
+      <td><label class="swatch" style="background:${colorOf(r.p)}" title="クリックで色を変更"><input type="color" data-f="color" value="${esc(colorOf(r.p))}" aria-label="ガントの色"></label></td>
+      <td><input type="text" data-f="code" value="${esc(r.p.code)}" style="min-width:80px"></td>
+      <td><input type="text" data-f="name" value="${esc(r.p.name)}" style="min-width:200px"></td>
+      <td class="num"><input type="number" data-f="mpm" min="0" step="any" class="${Number(r.p.mpm) > 0 ? '' : 'need'}" value="${esc(r.p.mpm ?? '')}" placeholder="必須"></td>
+      <td class="num"><input type="number" data-f="refill" min="0" step="any" value="${esc(r.p.refill ?? 0)}" title="0＝補充なし"></td>
+      <td><select data-f="refillUnit">${Object.entries(REFILL_UNITS).map(([k,v])=>`<option value="${k}" ${k===(r.p.refillUnit||'hour')?'selected':''}>${v}</option>`).join('')}</select></td>
+      <td><button class="icon-btn danger" data-del="${i}" title="削除" aria-label="削除">${icon('del')}</button></td></tr>`).join('');
+    t.tFoot.innerHTML = '';
+    document.getElementById('prodCount').textContent = `${state.products.length} 品番`;
+  }
+
+  // ---- イベント ----
+  const tbody = document.querySelector('#master tbody');
+  tbody.addEventListener('input', e => {
+    if (e.target.dataset.f !== 'color') return;
+    const tr = e.target.closest('tr'); const p = state.products[+tr.dataset.i];
+    p.color = e.target.value; e.target.parentElement.style.background = p.color;
+    save(); renderSchedule('hour', UNITS.hour);
+  });
+  tbody.addEventListener('change', e => {
+    const tr = e.target.closest('tr'), f = e.target.dataset.f; if (!tr || !f) return;
+    const p = state.products[+tr.dataset.i];
+    p[f] = (f === 'refill' || f === 'mpm') ? Math.max(0, parseFloat(e.target.value) || 0) : e.target.value;
+    save(); render();
+  });
+  tbody.addEventListener('click', e => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    state.products.splice(+b.dataset.del, 1); save(); render();
+  });
+  document.getElementById('addRow').addEventListener('click', () => {
+    const n = state.products.length + 1;
+    state.products.push({ code: 'P-' + String(n).padStart(3,'0'), name: '新規製品', mpm: '', color: PALETTE[state.products.length % PALETTE.length], refill: 0, refillUnit: 'hour' });
+    save(); render();
+    const inputs = tbody.querySelectorAll('tr:last-child input[data-f="name"]'); if (inputs[0]) inputs[0].select();
+  });
+  document.getElementById('resetData').addEventListener('click', () => {
+    state = JSON.parse(JSON.stringify(SAMPLE)); save(); render();
+  });
+
+  // CSV
+  const UNIT_FROM_LABEL = { '分':'min','min':'min','時間':'hour','時':'hour','h':'hour','hour':'hour','日':'day','d':'day','day':'day' };
+  document.getElementById('exportCsv').addEventListener('click', () => {
+    const q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : v;
+    const lines = ['製品コード,製品名,1分当たりメーター数(m/分),補充間隔,補充単位,色',
+      ...state.products.map(p => [p.code, p.name, p.mpm ?? '', p.refill || 0, REFILL_UNITS[p.refillUnit || 'hour'], colorOf(p)].map(q).join(','))];
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '製品マスター.csv'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  function parseCsv(text){
+    const out = []; let row = [], cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++){
+      const c = text[i];
+      if (inQ){ if (c === '"'){ if (text[i+1] === '"'){ cur += '"'; i++; } else inQ = false; } else cur += c; }
+      else if (c === '"') inQ = true;
+      else if (c === ','){ row.push(cur); cur=''; }
+      else if (c === '\n' || c === '\r'){ if (c==='\r' && text[i+1]==='\n') i++; row.push(cur); out.push(row); row=[]; cur=''; }
+      else cur += c;
+    }
+    if (cur !== '' || row.length) { row.push(cur); out.push(row); }
+    return out.filter(r => r.some(x => x.trim() !== ''));
+  }
+  document.getElementById('importCsv').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const buf = await f.arrayBuffer();
+    let text = new TextDecoder('utf-8').decode(buf);
+    if (text.includes('�')) { try { text = new TextDecoder('shift_jis').decode(buf); } catch(_){} }
+    text = text.replace(/^﻿/, '');
+    const rows = parseCsv(text);
+    // 見出し行があれば列名で判定（旧形式のCSVも読める）。無ければ現行の列順とみなす
+    let col = { code: 0, name: 1, mpm: 2, mph: -1, refill: 3, unit: 4, color: 5 };
+    if (rows.length && /製品コード|品番/.test(rows[0][0] || '')) {
+      const h = rows.shift().map(v => v.trim());
+      const find = re => h.findIndex(v => re.test(v));
+      col = { code: 0, name: find(/製品名/), mpm: find(/m\/分/), mph: find(/m\/時/), refill: find(/補充間隔/), unit: find(/補充単位|^単位/), color: find(/^色/) };
+    }
+    const at = (r, k) => (col[k] >= 0 ? (r[col[k]] || '') : '').trim();
+    const products = rows.map((r, i) => {
+      const mpm = at(r, 'mpm') !== '' ? parseFloat(at(r, 'mpm')) : at(r, 'mph') !== '' ? parseFloat(at(r, 'mph')) / 60 : NaN;
+      const old = state.products.find(p => p.code === at(r, 'code'));
+      return {
+        code: at(r, 'code'), name: at(r, 'name'),
+        mpm: isFinite(mpm) && mpm > 0 ? +mpm.toPrecision(6) : (old ? old.mpm : ''),
+        refill: Math.max(0, parseFloat(at(r, 'refill')) || 0),
+        refillUnit: ['分', 'min'].includes(at(r, 'unit')) ? 'min' : 'hour',
+        color: /^#[0-9a-f]{6}$/i.test(at(r, 'color')) ? at(r, 'color') : (old && old.color) || PALETTE[i % PALETTE.length],
+      };
+    }).filter(p => p.code || p.name);
+    if (products.length) { state.products = products; save(); render(); }
+    else alertless('CSVから製品を読み込めませんでした');
+    e.target.value = '';
+  });
+  function alertless(msg){ console.warn(msg); document.getElementById('prodCount').textContent = '⚠ ' + msg; }
+
+  // テーマ
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const root = document.documentElement;
+    const isDark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = isDark ? 'light' : 'dark';
+    try { localStorage.setItem(STORE_KEY + '-theme', root.dataset.theme); } catch(e) {}
+  });
+  try { const th = localStorage.getItem(STORE_KEY + '-theme'); if (th) document.documentElement.dataset.theme = th; } catch(e) {}
+
+  // ================= ライン別スケジュール =================
+  const WD = ['日','月','火','水','木','金','土'];
+  const uid = p => p + Math.random().toString(36).slice(2, 8);
+  const pad2 = n => String(n).padStart(2, '0');
+  const toLocalInput = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const fmtDT = d => `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const fmtSpan = (a, b) => a.toDateString() === b.toDateString() ? `${fmtDT(a)}〜${pad2(b.getHours())}:${pad2(b.getMinutes())}` : `${fmtDT(a)}〜${fmtDT(b)}`;
+  const fmtShort = d => `${d.getMonth()+1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const productByCode = c => state.products.find(p => p.code === c);
+  const lineName = id => (state.lines.find(l => l.id === id) || {}).name || '(未設定)';
+
+  // 稼働時間の制限なし：開始から所要時間ぶん連続で進める
+  const addWork = (start, minutes) => new Date(start.getTime() + minutes * 60e3);
+  // 流動メーター数は作業ごとに入力（毎回変わる値）、m/分 は製品マスターの固定値
+  const hasVal = v => v !== undefined && v !== null && v !== '';
+  function jobRate(j, p){
+    const meters = hasVal(j.meters) ? Number(j.meters) : 0;
+    const mpm    = p && hasVal(p.mpm) ? Number(p.mpm) : 0;
+    return { meters, mpm, perUnit: mpm > 0 ? meters / mpm : 0, missingM: !(meters > 0), missingR: !(mpm > 0), missing: !(meters > 0) || !(mpm > 0) };
+  }
+
+  function computeJobs(){
+    const jobs = state.schedule.map(j => {
+      const p = productByCode(j.code);
+      const rate = jobRate(j, p);
+      const min = p ? rate.perUnit * (Number(j.qty) || 0) : 0;
+      const s0 = new Date(j.start);
+      const valid = p && !isNaN(s0) && min > 0;
+      const s = s0;
+      const e = valid ? addWork(s, min) : s0;
+      const refills = [];
+      const iv = p ? refillMinutes(p) : 0;
+      if (valid && iv > 0) for (let k = 1; k * iv < min - 1e-6 && k <= 300; k++) refills.push(addWork(s, k * iv));
+      return { j, p, rate, min, s, e, valid, conflicts: [], refills };
+    });
+    // 同一ラインの重複検出
+    const overlaps = [];
+    for (let a = 0; a < jobs.length; a++) for (let b = a + 1; b < jobs.length; b++){
+      const x = jobs[a], y = jobs[b];
+      if (!x.valid || !y.valid || x.j.lineId !== y.j.lineId) continue;
+      const os = new Date(Math.max(x.s, y.s)), oe = new Date(Math.min(x.e, y.e));
+      if (oe > os){ const o = { a: x, b: y, s: os, e: oe }; overlaps.push(o); x.conflicts.push(o); y.conflicts.push(o); }
+    }
+    const lineOrder = id => state.lines.findIndex(l => l.id === id);
+    jobs.sort((x, y) => lineOrder(x.j.lineId) - lineOrder(y.j.lineId) || (x.s - y.s));
+    return { jobs, overlaps };
+  }
+
+  function renderSchedule(unit, U){
+    // ライン編集
+    const used = new Set(state.schedule.map(j => j.lineId));
+    document.getElementById('linesEdit').innerHTML = '<span class="lbl">ライン</span>' +
+      state.lines.map(l => `<span class="chip"><svg class="dot" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg><input type="text" data-line="${l.id}" value="${esc(l.name)}" aria-label="ライン名"><button data-delline="${l.id}" ${used.has(l.id) || state.lines.length <= 1 ? 'disabled' : ''} title="${used.has(l.id) ? '作業が割り当てられているため削除できません' : 'ラインを削除'}" aria-label="ラインを削除">${icon('close')}</button></span>`).join('') +
+      `<button class="chip add" id="addLine">${icon('add')}ライン追加</button>`;
+
+    const { jobs, overlaps } = computeJobs();
+
+    // アラート
+    const al = document.getElementById('alerts');
+    if (overlaps.length){
+      al.innerHTML = `<div class="alertbox" role="alert">${icon('warn')}<div><h3>時間帯の重複が ${overlaps.length} 件あります</h3><ul>` +
+        overlaps.map(o => `<li><b>${esc(lineName(o.a.j.lineId))}</b>：${esc(o.a.p.code)} ${esc(o.a.p.name)} と ${esc(o.b.p.code)} ${esc(o.b.p.name)} が <b style="color:var(--critical)">${fmtSpan(o.s, o.e)}</b> で重複（${fmt((o.e - o.s) / 3600e3)} 時間）</li>`).join('') + '</ul></div></div>';
+    } else al.innerHTML = state.schedule.length ? `<div class="okbox">${icon('ok')}<div><b>重複なし</b>　すべてのラインで作業の時間帯は重なっていません</div></div>` : '';
+
+    const usedCodes = [...new Set(state.schedule.map(j => j.code))];
+    document.getElementById('prodLegend').innerHTML = state.products.filter(p => usedCodes.includes(p.code))
+      .map(p => `<span><i style="background:${colorOf(p)}"></i>${esc(p.code)}</span>`).join('');
+    renderGantt(jobs, overlaps);
+
+    // 一覧
+    const t = document.getElementById('sched');
+    t.tHead.innerHTML = `<tr><th>状態</th><th>ライン</th><th>品番</th><th class="num">流動メーター数<br>(m)</th><th class="num" title="製品マスターの値">1分当たり<br>(m/分)</th><th class="num">数量</th><th>開始</th><th class="num">所要時間<br>(分)</th><th>開始〜終了</th><th>補充タイミング</th><th></th></tr>`;
+    document.getElementById('jobCount').textContent = `${state.schedule.length} 件`;
+    t.tBodies[0].innerHTML = jobs.length ? jobs.map(x => {
+      const ng = x.conflicts.length > 0;
+      return `<tr data-id="${x.j.id}" class="${ng ? 'conflict' : ''}">
+        <td>${!x.valid ? '<span class="badge na">未入力</span>' : ng ? `<span class="badge ng">${icon('warn')}重複</span>` : `<span class="badge ok">${icon('ok')}OK</span>`}</td>
+        <td><select data-jf="lineId">${state.lines.map(l => `<option value="${l.id}" ${l.id === x.j.lineId ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></td>
+        <td><span class="pdot" style="background:${x.p ? colorOf(x.p) : 'transparent'}"></span><select data-jf="code">${x.p ? '' : '<option value="" selected>(製品を選択)</option>'}${state.products.map(p => `<option value="${esc(p.code)}" ${p.code === x.j.code ? 'selected' : ''}>${esc(p.code)}　${esc(p.name)}</option>`).join('')}</select></td>
+        <td class="num"><input type="number" data-jf="meters" min="0" step="any" class="${hasVal(x.j.meters) && Number(x.j.meters) > 0 ? '' : 'need'}" value="${esc(hasVal(x.j.meters) ? x.j.meters : '')}" placeholder="必須" title="この作業の流動メーター数(m)"></td>
+        <td class="num">${x.p ? (x.rate.missingR ? '<span class="sub2" style="color:var(--critical)">マスター未設定</span>' : `<span class="ro">${fmt(x.rate.mpm)}</span>`) : '—'}</td>
+        <td class="num"><input type="number" data-jf="qty" min="0" step="1" value="${esc(x.j.qty)}" style="width:64px"></td>
+        <td><input type="datetime-local" data-jf="start" value="${esc(x.j.start)}"></td>
+        <td class="num">${x.valid ? `<div class="mval"><b>${fmt(x.min)}</b><span class="sub2">${Math.floor(Math.round(x.min)/60)}時間${pad2(Math.round(x.min)%60)}分</span></div>` : `<span class="sub2" style="color:var(--critical)">${!x.p ? '品番を選択' : x.rate.missingM ? '流動メーター数を入力' : x.rate.missingR ? 'マスターでm/分を設定' : '数量・開始を入力'}</span>`}</td>
+        <td class="when">${x.valid ? fmtSpan(x.s, x.e) : '—'}${ng ? `<div style="font-size:12px;font-weight:500">重複：${x.conflicts.map(o => fmtSpan(o.s, o.e)).join('、')}</div>` : ''}</td>
+        <td class="rf-list">${!x.valid ? '—' : x.refills.length ? `<b style="color:var(--text-primary)">▼ ${x.refills.length}回</b>：${x.refills.slice(0, 4).map(fmtShort).join('、')}${x.refills.length > 4 ? ` 他${x.refills.length - 4}回` : ''}` : 'なし'}</td>
+        <td><button class="icon-btn danger" data-deljob="${x.j.id}" title="削除" aria-label="削除">${icon('del')}</button></td></tr>`;
+    }).join('') : `<tr><td colspan="11" class="empty">作業が登録されていません。「作業を追加」から登録してください</td></tr>`;
+  }
+
+  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+  const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  const mdw = d => `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`;
+  function ganttWindow(vj){
+    const sc = state.gScale || 'fit';
+    if (sc === 'fit'){
+      const t0 = new Date(Math.min(...vj.map(x => x.s))); t0.setMinutes(0,0,0); t0.setHours(t0.getHours() - 1);
+      const t1 = new Date(Math.ceil(Math.max(...vj.map(x => x.e)) / 3600e3) * 3600e3 + 3600e3);
+      return [t0, t1];
+    }
+    const a = state.gAnchor ? new Date(state.gAnchor + 'T00:00') : new Date(Math.min(...vj.map(x => x.s)));
+    a.setHours(0,0,0,0);
+    if (sc === 'hour') return [a, addDays(a, 1)];          // 0:00〜24:00
+    const mon = addDays(a, -((a.getDay() + 6) % 7));
+    return [mon, addDays(mon, 6)];                           // 月〜土（日曜なし）
+  }
+  function ganttTicks(t0, t1, pxPerH){
+    const sc = state.gScale || 'fit', major = [], minor = [];
+    const eachHour = (step, lab) => { const t = new Date(t0); t.setMinutes(0,0,0); if (t < t0) t.setHours(t.getHours()+1);
+      for (; t <= t1; t.setHours(t.getHours() + 1)) if (t.getHours() % step === 0 && t.getHours() !== 0) minor.push({ t: new Date(t), label: lab(t) }); };
+    const eachDay = (fn) => { const d = new Date(t0); d.setHours(0,0,0,0); if (d < t0) d.setDate(d.getDate()+1); for (; d <= t1; d.setDate(d.getDate()+1)) fn(new Date(d)); };
+    if (sc === 'hour'){
+      major.push({ t: t0, label: mdw(t0), edge: true });
+      eachDay(d => { if (+d !== +t0) major.push({ t: d, label: mdw(d) }); });
+      eachHour(pxPerH >= 34 ? 1 : 2, t => `${t.getHours()}時`);
+    } else if (sc === 'day'){
+      eachDay(d => major.push({ t: d, label: mdw(d) }));
+      eachHour(pxPerH * 6 >= 30 ? 6 : 12, t => `${t.getHours()}時`);
+    } else if (sc === 'week'){
+      eachDay(d => {
+        if (d.getDay() === 1) major.push({ t: d, label: `${d.getMonth()+1}/${d.getDate()}〜 の週` });
+        else minor.push({ t: d, label: pxPerH * 24 >= 16 ? String(d.getDate()) : '' });
+      });
+    } else {
+      const pxDay = pxPerH * 24;
+      eachDay(d => major.push({ t: d, label: pxDay >= 70 ? mdw(d) : (d.getDay() === 1 ? mdw(d) : '') }));
+      const stepH = [1,2,3,6,12].find(h => pxPerH * h >= 44);
+      if (stepH) eachHour(stepH, t => `${pad2(t.getHours())}:00`);
+    }
+    if (sc !== 'hour' && sc !== 'week' && (t0.getHours() || t0.getMinutes())){
+      const first = major[0];
+      if (!first || (first.t - t0) / 3600e3 * pxPerH > 80) major.unshift({ t: t0, label: mdw(t0), edge: true });
+    }
+    return { major, minor };
+  }
+  function rangeLabel(t0, t1){
+    const sc = state.gScale || 'fit';
+    if (sc === 'hour') return `${t0.getFullYear()}/${mdw(t0)}`;
+    const e = new Date(t1 - 1);
+    return `${t0.getFullYear()}/${mdw(t0)} 〜 ${mdw(e)}`;
+  }
+
+  function renderGantt(jobs, overlaps){
+    const host = document.getElementById('gantt');
+    if (!['fit','hour','day'].includes(state.gScale)) state.gScale = 'fit';
+    const sc = state.gScale;
+    document.querySelectorAll('#gScaleSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.gs === sc));
+    document.querySelectorAll('[data-gnav]').forEach(b => b.disabled = sc === 'fit');
+    const vjAll = jobs.filter(x => x.valid);
+    if (!vjAll.length){ host.innerHTML = ''; document.getElementById('gRange').textContent = ''; return; }
+    const [t0, t1] = ganttWindow(vjAll);
+    document.getElementById('gRange').textContent = rangeLabel(t0, t1);
+    const vj = vjAll.filter(x => x.e > t0 && x.s < t1);
+    const spanH = (t1 - t0) / 3600e3;
+    const W = host.clientWidth || 1000, padL = 90, padR = 16, padT = 44, laneH = 50, H = padT + state.lines.length * laneH + 8;
+    const pxPerH = (W - padL - padR) / spanH;
+    const x = d => padL + (W - padL - padR) * ((d - t0) / (t1 - t0));
+    let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="ライン別スケジュール"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--critical)" opacity=".55"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--critical)" stroke-width="3"/></pattern><clipPath id="gclip"><rect x="${padL}" y="0" width="${W-padL-padR}" height="${H}"/></clipPath></defs>`;
+    state.lines.forEach((l, i) => s += `<rect class="g-lane" x="${padL}" y="${padT + i*laneH + 4}" width="${W-padL-padR}" height="${laneH-8}" rx="4"/><text class="g-lbl" x="${padL-10}" y="${padT + i*laneH + laneH/2 + 4}" text-anchor="end">${esc(l.name.length > 7 ? l.name.slice(0,7)+'…' : l.name)}</text>`);
+    s += `<g clip-path="url(#gclip)">`;
+    s += `</g>`;
+    // 時間軸（上段＝大区切り、下段＝小区切り）
+    const { major, minor } = ganttTicks(t0, t1, pxPerH);
+    minor.forEach(m => { s += `<line class="gridline" x1="${x(m.t)}" x2="${x(m.t)}" y1="${padT-6}" y2="${H-8}"/>`; if (m.label && x(m.t) < W - padR - 12) s += `<text class="tick${m.wk?' wk':''}" x="${x(m.t)}" y="${padT-10}" text-anchor="middle">${m.label}</text>`; });
+    major.forEach(m => { if (!m.edge) s += `<line class="gmajor" x1="${x(m.t)}" x2="${x(m.t)}" y1="6" y2="${H-8}"/>`; if (m.label && x(m.t) < W - padR - 60) s += `<text class="tick${m.wk?' wk':''}" x="${x(m.t)+4}" y="16" style="font-weight:600">${m.label}</text>`; });
+    s += `<g clip-path="url(#gclip)">`;
+    // 作業バー
+    vj.forEach(j => {
+      const li = state.lines.findIndex(l => l.id === j.j.lineId); if (li < 0) return;
+      const y = padT + li*laneH + 16, h = laneH - 24, bx = x(j.s), bw = Math.max(2, x(j.e) - x(j.s));
+      const pc = colorOf(j.p), ink = inkFor(pc);
+      s += `<g class="g-hit" data-id="${j.j.id}"><rect class="g-bar" x="${bx}" y="${y}" width="${bw}" height="${h}" rx="4" style="fill:${pc}" stroke="var(--surface-1)" stroke-width="2"/>`;
+      const vx0 = Math.max(bx, padL), vw = Math.min(bx + bw, W - padR) - vx0;
+      if (vw > 30) s += `<text class="g-txt" style="fill:${ink}" x="${vx0+6}" y="${y+h/2+4}">${esc((j.p.name || j.p.code).slice(0, Math.floor(vw/12)))}</text>`;
+      s += '</g>';
+      j.refills.forEach((rt, k) => {
+        if (rt < t0 || rt > t1) return;
+        const rx = x(rt), ty = padT + li*laneH + 5;
+        s += `<g class="g-rf" data-id="${j.j.id}" data-k="${k}"><line x1="${rx}" x2="${rx}" y1="${ty+8}" y2="${y+h}" class="g-rfl"/><path d="M${rx-5},${ty} h10 l-5,8 z" class="g-rfm"/><rect x="${rx-7}" y="${ty-2}" width="14" height="${y+h-ty+2}" fill="transparent"/></g>`;
+      });
+    });
+    overlaps.forEach(o => {
+      if (o.e <= t0 || o.s >= t1) return;
+      const li = state.lines.findIndex(l => l.id === o.a.j.lineId);
+      s += `<rect class="g-ov" x="${x(o.s)}" y="${padT + li*laneH + 5}" width="${Math.max(3, x(o.e)-x(o.s))}" height="${laneH-10}" rx="3" pointer-events="none"/>`;
+    });
+    s += '</g></svg>';
+    host.innerHTML = s;
+    const tip = document.getElementById('tip');
+    host.querySelectorAll('.g-hit').forEach(g => {
+      g.addEventListener('mousemove', ev => {
+        const j = vj.find(v => v.j.id === g.dataset.id);
+        tip.innerHTML = `<b>${esc(lineName(j.j.lineId))}　${esc(j.p.code)} ${esc(j.p.name)}</b><span class="k">数量：</span>${fmt(Number(j.j.qty)||0,0)} 個<br><span class="k">時間：</span>${fmtSpan(j.s, j.e)}<br><span class="k">所要：</span>${fmt(j.min)} 分（${fmt(j.min/60)} 時間）<br><span class="k">計算：</span>${fmt(j.rate.meters)} m ÷ ${fmt(j.rate.mpm)} m/分（マスター） × ${fmt(Number(j.j.qty)||0,0)} 個` +
+          (j.refills.length ? `<br><span class="k">補充：</span>${j.refills.length}回（${fmt(j.p.refill)}${REFILL_UNITS[j.p.refillUnit||'hour']}ごと）` : '') +
+          (j.conflicts.length ? `<br><span style="color:var(--critical);font-weight:600">⚠ 重複：${j.conflicts.map(o => fmtSpan(o.s, o.e)).join('、')}</span>` : '');
+        tip.style.display = 'block';
+        const tw = tip.offsetWidth; let left = ev.clientX + 14; if (left + tw > window.innerWidth - 8) left = ev.clientX - tw - 14;
+        tip.style.left = left + window.scrollX + 'px'; tip.style.top = ev.clientY + window.scrollY + 14 + 'px';
+      });
+      g.addEventListener('mouseleave', () => tip.style.display = 'none');
+    });
+    host.querySelectorAll('.g-rf').forEach(g => {
+      g.addEventListener('mousemove', ev => {
+        const j = vj.find(v => v.j.id === g.dataset.id), k = +g.dataset.k;
+        tip.innerHTML = `<b>▼ 補充 ${k+1}回目 ／ 全${j.refills.length}回</b><span class="k">時刻：</span>${fmtDT(j.refills[k])}<br><span class="k">作業：</span>${esc(lineName(j.j.lineId))}　${esc(j.p.code)} ${esc(j.p.name)}<br><span class="k">補充間隔：</span>${fmt(j.p.refill)} ${REFILL_UNITS[j.p.refillUnit||'hour']}ごと`;
+        tip.style.display = 'block';
+        const tw = tip.offsetWidth; let left = ev.clientX + 14; if (left + tw > window.innerWidth - 8) left = ev.clientX - tw - 14;
+        tip.style.left = left + window.scrollX + 'px'; tip.style.top = ev.clientY + window.scrollY + 14 + 'px';
+      });
+      g.addEventListener('mouseleave', () => tip.style.display = 'none');
+    });
+  }
+
+  // ---- タイムライン表示切替 ----
+  document.getElementById('gScaleSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.gScale = b.dataset.gs; save(); render();
+  });
+  document.querySelectorAll('[data-gnav]').forEach(b => b.addEventListener('click', () => {
+    const sc = state.gScale || 'fit'; if (sc === 'fit') return;
+    const n = +b.dataset.gnav;
+    let a;
+    if (n === 0) a = new Date();
+    else {
+      const vj = computeJobs().jobs.filter(x => x.valid);
+      a = state.gAnchor ? new Date(state.gAnchor + 'T00:00') : (vj.length ? new Date(Math.min(...vj.map(x => x.s))) : new Date());
+      a = addDays(a, n * ({ hour: 1, day: 7 })[sc]);
+    }
+    state.gAnchor = ymd(a); save(); render();
+  }));
+
+  // 同じ品番で直近（開始が最も遅い）作業の 流動メーター数 を初期値としてコピー
+  function copyLastRate(job){
+    const prev = state.schedule.filter(v => v !== job && v.code === job.code && hasVal(v.meters))
+      .sort((a, b) => String(b.start).localeCompare(String(a.start)))[0];
+    if (prev) job.meters = prev.meters;
+  }
+
+  // ---- スケジュール操作 ----
+  const schedCard = document.getElementById('schedCard');
+  schedCard.addEventListener('change', e => {
+    const el = e.target;
+    if (el.dataset.line){ const l = state.lines.find(v => v.id === el.dataset.line); if (l) l.name = el.value.trim() || l.name; save(); render(); return; }
+    const tr = el.closest('tr[data-id]'), f = el.dataset.jf; if (!tr || !f) return;
+    const j = state.schedule.find(v => v.id === tr.dataset.id); if (!j) return;
+    if (f === 'qty') j[f] = Math.max(0, parseFloat(el.value) || 0);
+    else if (f === 'code') { j.code = el.value; if (!hasVal(j.meters)) copyLastRate(j); }
+    else if (f === 'meters') {
+      const v = el.value.trim();
+      if (v === '' || isNaN(parseFloat(v))) delete j[f]; else j[f] = Math.max(0, parseFloat(v));
+    } else j[f] = el.value;
+    save(); render();
+  });
+  schedCard.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'addLine'){
+      const n = state.lines.length;
+      const name = 'ライン' + (n < 26 ? String.fromCharCode(65 + n) : n + 1);
+      state.lines.push({ id: uid('L'), name }); save(); render(); return;
+    }
+    if (b.dataset.delline){ state.lines = state.lines.filter(l => l.id !== b.dataset.delline); save(); render(); return; }
+    if (b.dataset.deljob){ state.schedule = state.schedule.filter(j => j.id !== b.dataset.deljob); save(); render(); return; }
+    if (b.id === 'addJob'){
+      const { jobs } = computeJobs();
+      // 最も早く空くラインに、最後の作業の終了時刻から追加
+      let best = null;
+      state.lines.forEach(l => {
+        const ends = jobs.filter(x => x.valid && x.j.lineId === l.id).map(x => x.e);
+        const t = ends.length ? new Date(Math.max(...ends)) : (() => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; })();
+        if (!best || t < best.t) best = { l, t };
+      });
+      const p = state.products[0];
+      const job = { id: uid('J'), lineId: best.l.id, code: p ? p.code : '', qty: 1, start: toLocalInput(best.t) };
+      copyLastRate(job);
+      state.schedule.push(job);
+      save(); render(); return;
+    }
+    if (b.id === 'packJobs'){
+      const { jobs } = computeJobs();
+      state.lines.forEach(l => {
+        let cursor = null;
+        jobs.filter(x => x.valid && x.j.lineId === l.id).forEach(x => {
+          let s = x.s; if (cursor && s < cursor) s = cursor;
+          x.j.start = toLocalInput(s);
+          cursor = addWork(s, x.min);
+        });
+      });
+      save(); render(); return;
+    }
+  });
+
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 120); });
+  render();
+})();
+</script>
+</body>
+</html>
